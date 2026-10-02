@@ -1,0 +1,12 @@
+.ipynb_checkpoints/
+.ruff_cache/
+.pytest_cache/
+.DS_Store
+.venv
+__pycache__/
+
+
+data/*
+!data/README.md
+artifacts/*
+!artifacts/.gitkeep
