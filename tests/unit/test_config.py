@@ -17,3 +17,10 @@ def test_data_root_is_overridable(tmp_path: Path) -> None:
 
     assert cfg.raw_dir == tmp_path / "ieee_cis" / "raw"
     assert cfg.splits_dir == tmp_path / "ieee_cis" / "splits"
+
+
+def test_preprocessing_section_loads() -> None:
+    pre = load_dataset_config("ieee_cis").preprocessing
+
+    assert pre.max_col_missing == 0.55 and pre.max_row_missing == 0.48
+    assert "P_emaildomain" in pre.qualitative_cols

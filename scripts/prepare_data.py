@@ -6,6 +6,7 @@ import argparse
 
 from fraud_detection.config import load_dataset_config
 from fraud_detection.data.datasets import load_raw
+from fraud_detection.data.preprocessing import TabularPreprocessor
 from fraud_detection.data.splitting import temporal_split
 
 
@@ -16,6 +17,7 @@ def main() -> None:
 
     cfg = load_dataset_config(args.dataset)
     cfg.splits_dir.mkdir(parents=True, exist_ok=True)
+    cfg.processed_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[{cfg.name}] loading raw data from {cfg.raw_dir}")
     raw = load_raw(cfg)
@@ -25,7 +27,21 @@ def main() -> None:
 
     for name, df in (("train", train), ("val", val), ("test", test)):
         df.to_parquet(cfg.splits_dir / f"{name}.parquet")
-        print(f"  {name:<5} {df.shape}  fraud rate {df[cfg.target].mean():.4%}")
+        print(f"  split     {name:<5} {df.shape}  fraud rate {df[cfg.target].mean():.4%}")
+
+    prep = TabularPreprocessor(cfg)
+    processed = {
+        "train": prep.fit_transform(train),
+        "val": prep.transform(val),
+        "test": prep.transform(test),
+    }
+
+    for name, df in processed.items():
+        df.to_parquet(cfg.processed_dir / f"{name}.parquet")
+        print(f"  processed {name:<5} {df.shape}  fraud rate {df[cfg.target].mean():.4%}")
+
+    prep.save(cfg.processed_dir / "preprocessor.joblib")
+    print(f"[{cfg.name}] done -> {cfg.processed_dir}")
 
 
 if __name__ == "__main__":

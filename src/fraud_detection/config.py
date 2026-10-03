@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -15,6 +15,17 @@ class SplitConfig:
 
 
 @dataclass(frozen=True)
+class PreprocessingConfig:
+    max_col_missing: float = 0.50
+    max_row_missing: float = 0.50
+    qualitative_cols: list[str] = field(default_factory=list[str])
+    already_encoded_cols: list[str] = field(default_factory=list[str])
+    ohe_max_unique: int = 10
+    skew_threshold: float = 0.5
+    time_features: str = "seconds_offset"
+
+
+@dataclass(frozen=True)
 class DatasetConfig:
     name: str
     loader: str
@@ -23,6 +34,7 @@ class DatasetConfig:
     time_col: str
     id_cols: list[str]
     split: SplitConfig
+    preprocessing: PreprocessingConfig
     data_root: Path = DATA_DIR
 
     @property
@@ -32,6 +44,10 @@ class DatasetConfig:
     @property
     def splits_dir(self) -> Path:
         return self.data_root / self.name / "splits"
+
+    @property
+    def processed_dir(self) -> Path:
+        return self.data_root / self.name / "processed"
 
 
 def load_dataset_config(name_or_path: str | Path, data_root: Path | None = None) -> DatasetConfig:
@@ -54,5 +70,6 @@ def load_dataset_config(name_or_path: str | Path, data_root: Path | None = None)
         time_col=raw["time_col"],
         id_cols=list(raw.get("id_cols", [])),
         split=SplitConfig(**raw.get("split", {})),
+        preprocessing=PreprocessingConfig(**raw.get("preprocessing", {})),
         data_root=data_root or DATA_DIR,
     )
