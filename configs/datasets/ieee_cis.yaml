@@ -1,0 +1,11 @@
+name: ieee_cis
+loader: ieee_cis
+raw_files:
+  transaction: train_transaction.csv
+  identity: train_identity.csv
+target: isFraud
+time_col: TransactionDT
+id_cols: [TransactionID]
+split:
+  val_size: 0.2
+  test_size: 0.1
