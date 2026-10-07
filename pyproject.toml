@@ -6,12 +6,15 @@ readme = "README.md"
 
 requires-python = ">=3.12"
 dependencies = [
+    "imbalanced-learn>=0.14.2",
     "joblib>=1.6.0",
+    "lightgbm>=4.7.0",
     "numpy>=2.5.3",
     "pandas>=3.0.6",
     "pyarrow>=25.0.1",
     "pyyaml>=6.0.3",
     "scikit-learn>=1.9.1",
+    "scipy>=1.18.1",
 ]
 
 [build-system]
@@ -20,16 +23,20 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "ipykernel>=7.4.0",
+    "matplotlib>=3.11.2",
     "nbstripout>=0.9.1",
     "pandas-stubs>=3.0.5.260914",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "ruff>=0.16.10",
+    "statsmodels>=0.15.0",
 ]
 
 [tool.ruff]
 line-length = 100
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = [
