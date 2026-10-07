@@ -1,11 +1,13 @@
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = REPO_ROOT / "configs"
 DATA_DIR = REPO_ROOT / "data"
+RESULTS_DIR = REPO_ROOT / "results"
 
 
 @dataclass(frozen=True)
@@ -72,4 +74,29 @@ def load_dataset_config(name_or_path: str | Path, data_root: Path | None = None)
         split=SplitConfig(**raw.get("split", {})),
         preprocessing=PreprocessingConfig(**raw.get("preprocessing", {})),
         data_root=data_root or DATA_DIR,
+    )
+
+
+@dataclass(frozen=True)
+class BenchmarkConfig:
+    """
+    One classifier, with and without SMOTE at several oversampling ratios.
+    """
+
+    name: str
+    dataset: str
+    seeds: list[int]
+    classifier_params: dict[str, Any]
+    smote_ratios: list[float]
+
+
+def load_benchmark_config(path: str | Path) -> BenchmarkConfig:
+    raw = yaml.safe_load(Path(path).read_text())
+
+    return BenchmarkConfig(
+        name=raw["name"],
+        dataset=raw["dataset"],
+        seeds=[int(seed) for seed in raw["seeds"]],
+        classifier_params=dict(raw.get("classifier", {}).get("params") or {}),
+        smote_ratios=[float(ratio) for ratio in raw["smote"]["ratios"]],
     )

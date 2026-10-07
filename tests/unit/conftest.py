@@ -97,3 +97,22 @@ def cfg() -> DatasetConfig:
             already_encoded_cols=["addr1", "addr2", "card1", "card2", "card3", "card5"],
         ),
     )
+
+
+@pytest.fixture
+def toy_split() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Small learnable fraud-like problem with an integer dummy column (~10% fraud).
+    """
+
+    rng = np.random.default_rng(0)
+
+    def make(n: int) -> pd.DataFrame:
+        df = pd.DataFrame(rng.normal(size=(n, 5)), columns=[f"f{i}" for i in range(5)])
+        df["dummy"] = rng.integers(0, 2, n)
+        score = df["f0"] + 0.5 * df["f1"] + rng.normal(scale=0.7, size=n)
+        df["isFraud"] = (score > np.quantile(score, 0.9)).astype(int)
+
+        return df
+
+    return make(1500), make(600)
