@@ -1,6 +1,7 @@
 import random
 
 import numpy as np
+import torch
 
 from fraud_detection.utils.seed import set_seed
 
@@ -20,3 +21,11 @@ def test_different_seed_different_numbers() -> None:
     set_seed(8)
 
     assert random.random() != first
+
+
+def test_seed_controls_torch_too() -> None:
+    set_seed(5)
+    first = torch.rand(3)
+    set_seed(5)
+
+    assert torch.equal(first, torch.rand(3))

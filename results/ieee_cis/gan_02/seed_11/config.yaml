@@ -1,0 +1,24 @@
+name: gan_02
+dataset: ieee_cis
+seeds: [11]
+
+model:
+  noise_dim: 128
+  generator_hidden: [512, 512, 512, 256]
+  critic_hidden: [512, 256]
+  critic_dropout: 0.3
+  critic_spectral_norm: false
+
+training:
+  objective: bce
+  epochs: 500
+  g_lr: 3.0e-4
+  d_lr: 1.0e-4
+  betas: [0.5, 0.999]
+  real_noise_std: 0.05
+
+evaluation:
+  ratios: [0.05, 0.075, 0.1, 0.15, 0.2, 0.25, 0.5]
+  classifier:
+    params:
+      verbose: -1
