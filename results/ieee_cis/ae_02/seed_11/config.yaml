@@ -1,0 +1,12 @@
+name: ae_02
+dataset: ieee_cis
+seeds: [11]
+
+model:
+  hidden: 256
+  latent: 64
+  dropout: 0.0
+training:
+  epochs: 30
+  lr: 1.0e-4
+  batch_size: 256

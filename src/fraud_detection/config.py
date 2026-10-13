@@ -163,3 +163,38 @@ def load_gan_config(path: str | Path) -> GanExperimentConfig:
         ratios=[float(ratio) for ratio in raw["evaluation"]["ratios"]],
         classifier_params=dict(raw["evaluation"].get("classifier", {}).get("params") or {}),
     )
+
+
+@dataclass(frozen=True)
+class AutoencoderModelConfig:
+    hidden: int
+    latent: int
+    dropout: float = 0.0
+
+
+@dataclass(frozen=True)
+class AutoencoderTrainingConfig:
+    epochs: int
+    lr: float
+    batch_size: int = 256
+
+
+@dataclass(frozen=True)
+class AutoencoderExperimentConfig:
+    name: str
+    dataset: str
+    seeds: list[int]
+    model: AutoencoderModelConfig
+    training: AutoencoderTrainingConfig
+
+
+def load_autoencoder_config(path: str | Path) -> AutoencoderExperimentConfig:
+    raw = yaml.safe_load(Path(path).read_text())
+
+    return AutoencoderExperimentConfig(
+        name=raw["name"],
+        dataset=raw["dataset"],
+        seeds=[int(seed) for seed in raw["seeds"]],
+        model=AutoencoderModelConfig(**raw["model"]),
+        training=AutoencoderTrainingConfig(**raw["training"]),
+    )

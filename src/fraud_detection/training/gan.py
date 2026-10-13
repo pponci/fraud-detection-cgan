@@ -3,30 +3,15 @@
 from dataclasses import dataclass, field
 from typing import cast
 
-import numpy as np
 import pandas as pd
 import torch
 from torch import nn, optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 from fraud_detection.config import GanModelConfig, GanTrainingConfig
 from fraud_detection.models.gan import Critic, Generator
+from fraud_detection.training.rows import RowDataset
 from fraud_detection.utils.seed import set_seed
-
-
-class FraudDataset(Dataset[torch.Tensor]):
-    """
-    The real fraud rows, as float32 tensors (the GAN never sees legitimate transactions).
-    """
-
-    def __init__(self, fraud: pd.DataFrame) -> None:
-        self.features = torch.as_tensor(fraud.to_numpy(dtype=np.float32, copy=True))
-
-    def __len__(self) -> int:
-        return len(self.features)
-
-    def __getitem__(self, index: int) -> torch.Tensor:
-        return self.features[index]
 
 
 @dataclass
@@ -171,7 +156,7 @@ def train_gan(
     loader_generator = torch.Generator()
     loader_generator.manual_seed(seed)
     loader = DataLoader(
-        FraudDataset(fraud),
+        RowDataset(fraud),
         batch_size=cfg.batch_size,
         shuffle=True,
         generator=loader_generator,
