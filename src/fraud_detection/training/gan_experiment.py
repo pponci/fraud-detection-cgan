@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 
+from fraud_detection.augmentation.condition import sample_condition_scores, training_conditions
 from fraud_detection.augmentation.gan import generate_gan_samples, n_synthetic_for_share
 from fraud_detection.config import GanExperimentConfig
 from fraud_detection.models.gan import Generator
@@ -27,7 +28,10 @@ def load_generator(
 
     checkpoint = torch.load(path, map_location=device)
     generator = Generator(
-        checkpoint["data_dim"], checkpoint["noise_dim"], cfg.model.generator_hidden
+        checkpoint["data_dim"],
+        checkpoint["noise_dim"],
+        cfg.model.generator_hidden,
+        checkpoint.get("cond_dim", 0),
     )
     generator.load_state_dict(checkpoint["g_model_state_dict"])
     generator.to(device)
@@ -47,18 +51,30 @@ def run_gan_experiment(
     seed: int,
     device: torch.device,
     checkpoint: Path | None = None,
+    train_scores: pd.DataFrame | None = None,
 ) -> GanRunResult:
     """
     Train a GAN on the real fraud rows of train and evaluate it on the ratio sweep.
     """
 
     x_train, y_train = train.drop(columns=target), train[target]
+    condition = cfg.condition
+
+    if condition is not None and train_scores is None:
+        raise ValueError(f"{cfg.name} is conditional: train_scores is required")
 
     if checkpoint is not None and checkpoint.exists():
         generator, history = load_generator(checkpoint, cfg, device)
 
     else:
-        trained = train_gan(x_train[y_train == 1], cfg.model, cfg.training, seed, device)
+        train_condition = (
+            None
+            if condition is None or train_scores is None
+            else training_conditions(train_scores, y_train)
+        )
+        trained = train_gan(
+            x_train[y_train == 1], cfg.model, cfg.training, seed, device, train_condition
+        )
         generator = trained.generator
         history = pd.DataFrame({"d_loss": trained.d_losses, "g_loss": trained.g_losses})
         history.index.name = "epoch"
@@ -68,17 +84,26 @@ def run_gan_experiment(
             save_checkpoint(str(checkpoint), trained, cfg.training.epochs)
 
     def make_synthetic(ratio: float) -> pd.DataFrame:
+        n_rows = n_synthetic_for_share(y_train, ratio)
+        sampled = (
+            None
+            if condition is None or train_scores is None
+            else sample_condition_scores(train_scores, y_train, n_rows, seed, condition.n_bins)
+        )
+
         return generate_gan_samples(
             generator,
-            n_rows=n_synthetic_for_share(y_train, ratio),
+            n_rows=n_rows,
             noise_dim=cfg.model.noise_dim,
             columns=x_train.columns,
             seed=seed,
             device=device,
+            condition=sampled,
         )
 
+    method = "gan" if condition is None else "cgan"
     metrics, quality = evaluate_synthetic_sweep(
-        "gan", cfg.ratios, make_synthetic, train, val, target, seed, cfg.classifier_params
+        method, cfg.ratios, make_synthetic, train, val, target, seed, cfg.classifier_params
     )
 
     return GanRunResult(metrics=metrics, synthetic_quality=quality, history=history)

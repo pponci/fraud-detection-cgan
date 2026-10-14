@@ -1,16 +1,18 @@
 # pyright: reportUnknownMemberType=false
 
 from dataclasses import dataclass, field
-from typing import cast
+from typing import Any, cast
 
+import numpy as np
 import pandas as pd
 import torch
+from numpy.typing import NDArray
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
 from fraud_detection.config import GanModelConfig, GanTrainingConfig
 from fraud_detection.models.gan import Critic, Generator
-from fraud_detection.training.rows import RowDataset
+from fraud_detection.training.rows import ConditionedRowDataset, RowDataset
 from fraud_detection.utils.seed import set_seed
 
 
@@ -22,12 +24,17 @@ class TrainedGan:
     d_optimizer: optim.Optimizer
     noise_dim: int
     data_dim: int
+    cond_dim: int = 0
     d_losses: list[float] = field(default_factory=list[float])
     g_losses: list[float] = field(default_factory=list[float])
 
 
 def gradient_penalty(
-    critic: nn.Module, real: torch.Tensor, fake: torch.Tensor, device: torch.device
+    critic: nn.Module,
+    real: torch.Tensor,
+    fake: torch.Tensor,
+    device: torch.device,
+    cond: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """
     WGAN-GP: push the critic's gradient norm towards 1 on random real/fake interpolations.
@@ -40,7 +47,7 @@ def gradient_penalty(
     interpolated = alpha * real + (1 - alpha) * fake
     interpolated.requires_grad_(True)
 
-    critic_interpolated = critic(interpolated)
+    critic_interpolated = critic(interpolated) if cond is None else critic(interpolated, cond)
 
     gradients = torch.autograd.grad(
         outputs=critic_interpolated,
@@ -99,6 +106,7 @@ def _bce_step(
 
 def _wgan_step(
     real: torch.Tensor,
+    cond: torch.Tensor | None,
     trained: TrainedGan,
     cfg: GanTrainingConfig,
     device: torch.device,
@@ -116,21 +124,21 @@ def _wgan_step(
     for _ in range(cfg.n_critic):
         d.zero_grad()
 
-        real_validity = d(real_in).mean()
+        real_validity = d(real_in, cond).mean()
         noise = torch.randn(batch_size, trained.noise_dim, device=device)
-        fake = g(noise)
-        fake_validity = d(fake.detach()).mean()
+        fake = g(noise, cond)
+        fake_validity = d(fake.detach(), cond).mean()
 
         loss_d = -real_validity + fake_validity
         if cfg.lambda_gp > 0:
-            loss_d = loss_d + cfg.lambda_gp * gradient_penalty(d, real_in, fake, device)
+            loss_d = loss_d + cfg.lambda_gp * gradient_penalty(d, real_in, fake, device, cond)
         loss_d.backward()
         trained.d_optimizer.step()
 
     g.zero_grad()
     noise = torch.randn(batch_size, trained.noise_dim, device=device)
-    fake = g(noise)
-    loss_g = -d(fake).mean()
+    fake = g(noise, cond)
+    loss_g = -d(fake, cond).mean()
     loss_g.backward()
     trained.g_optimizer.step()
 
@@ -143,6 +151,7 @@ def train_gan(
     cfg: GanTrainingConfig,
     seed: int,
     device: torch.device,
+    condition: NDArray[np.float32] | None = None,
     log_every: int = 10,
 ) -> TrainedGan:
     """
@@ -152,11 +161,15 @@ def train_gan(
     if cfg.objective not in ("bce", "wgan"):
         raise ValueError(f"Unknown objective {cfg.objective!r}; expected 'bce' or 'wgan'")
 
+    if condition is not None and cfg.objective != "wgan":
+        raise ValueError("conditioning is only implemented for the 'wgan' objective")
+
     set_seed(seed)
     loader_generator = torch.Generator()
     loader_generator.manual_seed(seed)
-    loader = DataLoader(
-        RowDataset(fraud),
+    dataset = RowDataset(fraud) if condition is None else ConditionedRowDataset(fraud, condition)
+    loader: DataLoader[Any] = DataLoader(
+        dataset,
         batch_size=cfg.batch_size,
         shuffle=True,
         generator=loader_generator,
@@ -170,12 +183,16 @@ def train_gan(
         )
 
     data_dim = fraud.shape[1]
-    generator = Generator(data_dim, model_cfg.noise_dim, model_cfg.generator_hidden).to(device)
+    cond_dim = 0 if condition is None else condition.shape[1]
+    generator = Generator(data_dim, model_cfg.noise_dim, model_cfg.generator_hidden, cond_dim).to(
+        device
+    )
     critic = Critic(
         data_dim,
         model_cfg.critic_hidden,
         model_cfg.critic_dropout,
         model_cfg.critic_spectral_norm,
+        cond_dim,
     ).to(device)
     trained = TrainedGan(
         generator=generator,
@@ -184,18 +201,31 @@ def train_gan(
         d_optimizer=optim.Adam(critic.parameters(), lr=cfg.d_lr, betas=cfg.betas),
         noise_dim=model_cfg.noise_dim,
         data_dim=data_dim,
+        cond_dim=cond_dim,
     )
 
-    step = _bce_step if cfg.objective == "bce" else _wgan_step
-
     for epoch in range(cfg.epochs):
+        if cfg.lr_decay_epoch is not None and epoch == cfg.lr_decay_epoch:
+            for optimizer in (trained.g_optimizer, trained.d_optimizer):
+                for param_group in optimizer.param_groups:
+                    param_group["lr"] *= cfg.lr_decay_factor
+
         generator.train()
         critic.train()
 
         d_total, g_total = 0.0, 0.0
 
-        for real in loader:
-            d_loss, g_loss = step(real.to(device), trained, cfg, device)
+        for batch in loader:
+            if cfg.objective == "bce":
+                d_loss, g_loss = _bce_step(batch.to(device), trained, cfg, device)
+
+            elif condition is None:
+                d_loss, g_loss = _wgan_step(batch.to(device), None, trained, cfg, device)
+
+            else:
+                real, cond = batch
+                d_loss, g_loss = _wgan_step(real.to(device), cond.to(device), trained, cfg, device)
+
             d_total += d_loss
             g_total += g_loss
 
@@ -221,6 +251,7 @@ def save_checkpoint(path: str, trained: TrainedGan, epochs: int) -> None:
             "epoch": epochs,
             "noise_dim": trained.noise_dim,
             "data_dim": trained.data_dim,
+            "cond_dim": trained.cond_dim,
             "d_train_losses": trained.d_losses,
             "g_train_losses": trained.g_losses,
         },

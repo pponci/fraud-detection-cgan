@@ -85,3 +85,45 @@ def test_too_few_rows_for_one_batch_is_a_clear_error(fraud: pd.DataFrame) -> Non
 
     with pytest.raises(ValueError, match="cannot fill one batch"):
         train_gan(fraud.iloc[:10], MODEL, BCE, seed=1, device=CPU)
+
+
+def make_condition(n: int) -> np.ndarray:
+    return np.random.default_rng(1).normal(size=(n, 1)).astype(np.float32)
+
+
+def test_conditional_training_runs_and_builds_conditional_networks(fraud: pd.DataFrame) -> None:
+    trained = train_gan(fraud, MODEL, WGAN, 1, CPU, condition=make_condition(len(fraud)))
+
+    assert trained.cond_dim == 1
+    assert np.isfinite(trained.d_losses + trained.g_losses).all()
+
+    noise, cond = torch.randn(3, MODEL.noise_dim), torch.randn(3, 1)
+
+    assert trained.generator(noise, cond).shape == (3, fraud.shape[1])
+
+
+def test_the_condition_pairing_changes_what_is_learned(fraud: pd.DataFrame) -> None:
+    condition = make_condition(len(fraud))
+    first = train_gan(fraud, MODEL, WGAN, 3, CPU, condition=condition)
+    second = train_gan(fraud, MODEL, WGAN, 3, CPU, condition=condition[::-1].copy())
+    same = torch.equal(
+        first.generator.state_dict()["fc.0.weight"], second.generator.state_dict()["fc.0.weight"]
+    )
+
+    assert not same
+
+
+def test_conditioning_is_only_available_for_the_wgan_objective(fraud: pd.DataFrame) -> None:
+    with pytest.raises(ValueError, match="only implemented for the 'wgan'"):
+        train_gan(fraud, MODEL, BCE, 1, CPU, condition=make_condition(len(fraud)))
+
+
+def test_learning_rates_are_scaled_once_at_the_decay_epoch(fraud: pd.DataFrame) -> None:
+    decayed = train_gan(fraud, MODEL, replace(WGAN, epochs=3, lr_decay_epoch=1), 1, CPU)
+
+    assert decayed.g_optimizer.param_groups[0]["lr"] == pytest.approx(1e-3 * 0.5)
+    assert decayed.d_optimizer.param_groups[0]["lr"] == pytest.approx(1e-3 * 0.5)
+
+    plain = train_gan(fraud, MODEL, replace(WGAN, epochs=3), 1, CPU)
+
+    assert plain.g_optimizer.param_groups[0]["lr"] == pytest.approx(1e-3)

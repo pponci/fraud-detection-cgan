@@ -1,9 +1,12 @@
 """
 Usage:
-    uv run python scripts/train_gan.py --config configs/experiments/development/gan/gan_01.yaml
+    uv run python scripts/train_gan.py --config configs/experiments/development/gan/gan_08.yaml
 
 To evaluate a generator you already have, instead of training one:
     uv run python scripts/train_gan.py --config <config> --checkpoint path/to/generator.pth
+
+For a cGAN, --scores-dir points at the folder holding scores_train.parquet if it is not the
+default artifacts/<dataset>/<autoencoder experiment>/seed_<n>/.
 """
 
 import argparse
@@ -26,6 +29,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path, help="evaluate this generator, do not train")
+    parser.add_argument(
+        "--scores-dir", type=Path, help="cGAN only: folder with scores_train.parquet"
+    )
     parser.add_argument("--force", action="store_true", help="recompute existing results")
     args = parser.parse_args()
 
@@ -54,8 +60,26 @@ def main() -> None:
         if args.force and not args.checkpoint:
             checkpoint.unlink(missing_ok=True)
 
+        train_scores = None
+
+        if cfg.condition is not None:
+            scores_dir = args.scores_dir or (
+                ARTIFACTS_DIR / dataset.name / cfg.condition.scores_from / f"seed_{seed}"
+            )
+            scores_path = scores_dir / "scores_train.parquet"
+
+            if not scores_path.exists():
+                raise SystemExit(
+                    f"{scores_path} not found: run scripts/train_autoencoder.py for "
+                    f"{cfg.condition.scores_from} (seed {seed}) first"
+                )
+
+            train_scores = pd.read_parquet(scores_path)
+
         print(f"[seed {seed}] {cfg.name} on {dataset.name}")
-        result = run_gan_experiment(train, val, dataset.target, cfg, seed, device, checkpoint)
+        result = run_gan_experiment(
+            train, val, dataset.target, cfg, seed, device, checkpoint, train_scores
+        )
 
         out_dir.mkdir(parents=True, exist_ok=True)
         result.metrics.to_csv(out_dir / "metrics.csv", index=False)

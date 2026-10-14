@@ -133,6 +133,22 @@ class GanTrainingConfig:
     lambda_gp: float = 0.0
     real_noise_std: float = 0.0
     label_smoothing: tuple[float, float] = (0.9, 0.1)
+    lr_decay_epoch: int | None = None
+    lr_decay_factor: float = 0.5
+
+
+@dataclass(frozen=True)
+class ConditionConfig:
+    """
+    Conditioning a GAN on an autoencoder anomaly score (turns the GAN into a cGAN).
+
+    scores_from names the autoencoder experiment whose saved scores are used (for the same
+    seed).
+    n_bins equal-width bins stratify the scores drawn at generation time.
+    """
+
+    scores_from: str
+    n_bins: int = 3
 
 
 @dataclass(frozen=True)
@@ -144,6 +160,7 @@ class GanExperimentConfig:
     training: GanTrainingConfig
     ratios: list[float]
     classifier_params: dict[str, Any]
+    condition: ConditionConfig | None = None
 
 
 def load_gan_config(path: str | Path) -> GanExperimentConfig:
@@ -162,6 +179,7 @@ def load_gan_config(path: str | Path) -> GanExperimentConfig:
         training=GanTrainingConfig(**training),
         ratios=[float(ratio) for ratio in raw["evaluation"]["ratios"]],
         classifier_params=dict(raw["evaluation"].get("classifier", {}).get("params") or {}),
+        condition=ConditionConfig(**raw["condition"]) if raw.get("condition") else None,
     )
 
 

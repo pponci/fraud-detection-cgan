@@ -53,3 +53,16 @@ def test_same_seed_and_size_give_the_same_samples(generator: Generator) -> None:
     pd.testing.assert_frame_equal(first, second)
 
     assert not first.equals(other)
+
+
+def test_generation_uses_the_condition() -> None:
+    torch.manual_seed(0)
+    conditional = Generator(data_dim=5, noise_dim=4, hidden=[8], cond_dim=1)
+    columns = pd.Index(list("abcde"))
+    low = np.full((12, 1), -2.0, dtype=np.float32)
+    high = np.full((12, 1), 2.0, dtype=np.float32)
+    first = generate_gan_samples(conditional, 12, 4, columns, 1, CPU, condition=low)
+    second = generate_gan_samples(conditional, 12, 4, columns, 1, CPU, condition=high)
+
+    assert first.shape == (12, 5)
+    assert not first.equals(second)

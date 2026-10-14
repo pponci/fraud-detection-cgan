@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch
+from numpy.typing import NDArray
 
 from fraud_detection.models.gan import Generator
 
@@ -28,6 +29,7 @@ def generate_gan_samples(
     columns: pd.Index,
     seed: int,
     device: torch.device,
+    condition: NDArray[np.float32] | None = None,
 ) -> pd.DataFrame:
     """
     Draw n_rows synthetic samples. The same seed and size always give the same samples.
@@ -38,7 +40,9 @@ def generate_gan_samples(
     noise_generator.manual_seed(seed)
     noise = torch.randn(n_rows, noise_dim, generator=noise_generator).to(device)
 
+    cond = None if condition is None else torch.as_tensor(condition, dtype=torch.float32).to(device)
+
     with torch.no_grad():
-        fake = generator(noise).cpu().numpy()
+        fake = generator(noise, cond).cpu().numpy()
 
     return pd.DataFrame(fake.astype(np.float64), columns=columns)
