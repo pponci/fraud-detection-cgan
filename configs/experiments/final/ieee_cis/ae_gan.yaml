@@ -1,0 +1,10 @@
+name: ae_cgan
+label: AE-cGAN
+dataset: ieee_cis
+method: cgan
+source: cgan_04
+ratio: auto
+seeds: [11]
+classifier:
+  params:
+    verbose: -1

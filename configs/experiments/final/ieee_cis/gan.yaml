@@ -1,0 +1,10 @@
+name: gan
+label: GAN
+dataset: ieee_cis
+method: gan
+source: gan_08
+ratio: auto
+seeds: [11]
+classifier:
+  params:
+    verbose: -1

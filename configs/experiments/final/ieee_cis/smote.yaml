@@ -1,0 +1,10 @@
+name: smote
+label: SMOTE
+dataset: ieee_cis
+method: smote
+source: smote_sweep
+ratio: auto
+seeds: [11]
+classifier:
+  params:
+    verbose: -1

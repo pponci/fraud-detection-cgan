@@ -9,6 +9,7 @@ CONFIG_DIR = REPO_ROOT / "configs"
 DATA_DIR = REPO_ROOT / "data"
 RESULTS_DIR = REPO_ROOT / "results"
 ARTIFACTS_DIR = REPO_ROOT / "artifacts"
+FINAL_METHODS = ("baseline", "smote", "gan", "cgan")
 
 
 @dataclass(frozen=True)
@@ -216,3 +217,62 @@ def load_autoencoder_config(path: str | Path) -> AutoencoderExperimentConfig:
         model=AutoencoderModelConfig(**raw["model"]),
         training=AutoencoderTrainingConfig(**raw["training"]),
     )
+
+
+@dataclass(frozen=True)
+class FinalMethodConfig:
+    """
+    One method of the final comparison.
+    """
+
+    name: str
+    label: str
+    dataset: str
+    method: str
+    seeds: list[int]
+    classifier_params: dict[str, Any]
+    source: str | None = None
+    ratio: float | None = None
+
+
+def load_final_config(path: str | Path) -> FinalMethodConfig:
+    raw = yaml.safe_load(Path(path).read_text())
+    method = raw["method"]
+
+    if method not in FINAL_METHODS:
+        raise ValueError(f"Unknown method {method!r}; expected one of {FINAL_METHODS}")
+
+    ratio = None if raw.get("ratio", "auto") == "auto" else float(raw["ratio"])
+    source = raw.get("source")
+
+    if method in ("gan", "cgan") and source is None:
+        raise ValueError(
+            f"{raw['name']}: a {method} needs `source`, the experiment with its generator"
+        )
+
+    if method == "smote" and ratio is None and source is None:
+        raise ValueError(f"{raw['name']}: set `ratio`, or `source` to choose it from its results")
+
+    return FinalMethodConfig(
+        name=raw["name"],
+        label=raw.get("label", raw["name"]),
+        dataset=raw["dataset"],
+        method=method,
+        seeds=[int(seed) for seed in raw["seeds"]],
+        classifier_params=dict(raw.get("classifier", {}).get("params") or {}),
+        source=source,
+        ratio=ratio,
+    )
+
+
+def find_experiment_config(name: str) -> Path:
+    """
+    The development config of the experiment called name (e.g. gan_08).
+    """
+
+    matches = sorted((CONFIG_DIR / "experiments" / "development").glob(f"*/{name}.yaml"))
+
+    if len(matches) != 1:
+        raise FileNotFoundError(f"expected one development config named {name}, found {matches}")
+
+    return matches[0]

@@ -1,0 +1,8 @@
+name: baseline
+label: Baseline
+dataset: ieee_cis
+method: baseline
+seeds: [11]
+classifier:
+  params:
+    verbose: -1

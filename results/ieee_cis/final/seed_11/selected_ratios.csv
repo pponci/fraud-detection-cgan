@@ -1,0 +1,4 @@
+method,ratio,selection
+SMOTE,0.05,best validation PR-AUC in smote_sweep (0.5178)
+GAN,0.1,best validation PR-AUC in gan_08 (0.5187)
+AE-cGAN,0.1,best validation PR-AUC in cgan_04 (0.5185)
