@@ -13,9 +13,6 @@ classifiers = [
 ]
 readme = "README.md"
 
-[project.urls]
-Repository = "https://github.com/pponci/fraud-detection-cgan"
-
 requires-python = ">=3.12"
 dependencies = [
     "imbalanced-learn>=0.14.2",
@@ -30,6 +27,9 @@ dependencies = [
     "scipy>=1.18.1",
     "torch>=2.14.1",
 ]
+
+[project.urls]
+Repository = "https://github.com/pponci/fraud-detection-cgan"
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13.0"]
