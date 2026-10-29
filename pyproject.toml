@@ -1,8 +1,20 @@
 [project]
 name = "fraud-detection"
 version = "0.1.0"
-description = "Add your description here"
+description = "Autoencoder-guided conditional GAN for synthetic fraud generation under severe class imbalance"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Piercarlo Ponci" }]
+keywords = ["fraud-detection", "gan", "conditional-gan", "autoencoder", "imbalanced-learning", "smote", "pytorch"]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 readme = "README.md"
+
+[project.urls]
+Repository = "https://github.com/pponci/fraud-detection-cgan"
 
 requires-python = ">=3.12"
 dependencies = [
